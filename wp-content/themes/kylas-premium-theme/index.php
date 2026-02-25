@@ -93,15 +93,23 @@
                         return;
                     }
 
-                    function setField(name, value) {
-                        var el = hForm.querySelector('[name="' + name + '"]');
-                        if (el) { el.value = value; }
+                    function setField(names, value) {
+                        if (!Array.isArray(names)) {
+                            names = [names];
+                        }
+                        for (var i = 0; i < names.length; i++) {
+                            var el = hForm.querySelector('[name="' + names[i] + '"]');
+                            if (el) { 
+                                el.value = value; 
+                                return;
+                            }
+                        }
                     }
-                    setField('first-name', fn);
-                    setField('last-name',  ln);
-                    setField('your-email', em);
-                    setField('phone',      ph);
-                    setField('your-message', msg);
+                    setField(['first-name', 'fname', 'firstName', 'first_name'], fn);
+                    setField(['last-name', 'lname', 'lastName', 'last_name'],  ln);
+                    setField(['your-email', 'email', 'email-address'], em);
+                    setField(['phone', 'tel', 'mobile-number'], ph);
+                    setField(['your-message', 'message', 'description', 'requirement'], msg);
 
                     btn.disabled = true;
                     btn.textContent = 'Sending…';

@@ -522,6 +522,10 @@ class Kylas_CRM_Form_Handler {
                 $value = sanitize_text_field( $raw_value );
             }
 
+            if ( $value === '' && $kylas_field !== 'dnd' ) {
+                continue;
+            }
+
             switch ( $kylas_field ) {
                 case 'email':
                     $kylas_payload['emails'] = array(
