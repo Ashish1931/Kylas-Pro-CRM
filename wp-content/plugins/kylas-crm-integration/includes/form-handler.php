@@ -515,7 +515,12 @@ class Kylas_CRM_Form_Handler {
                 continue;
             }
 
-            $value = sanitize_text_field( $posted_data[ $cf7_field ] );
+            $raw_value = $posted_data[ $cf7_field ];
+            if ( is_array( $raw_value ) ) {
+                $value = isset($raw_value[0]) ? sanitize_text_field( $raw_value[0] ) : '';
+            } else {
+                $value = sanitize_text_field( $raw_value );
+            }
 
             switch ( $kylas_field ) {
                 case 'email':
@@ -547,6 +552,37 @@ class Kylas_CRM_Form_Handler {
                         $kylas_payload['notes'] = array();
                     }
                     $kylas_payload['notes'][] = array( 'content' => $value );
+                    break;
+
+                case 'companyPhones':
+                    $clean_phone = preg_replace( '/[^0-9]/', '', $value );
+                    if ( strlen( $clean_phone ) > 10 ) {
+                        $clean_phone = substr( $clean_phone, -10 );
+                    }
+
+                    $kylas_payload['companyPhones'] = array(
+                        array(
+                            'type'     => 'MOBILE',
+                            'code'     => 'IN',
+                            'value'    => $clean_phone,
+                            'dialCode' => '+91',
+                            'primary'  => true,
+                        ),
+                    );
+                    break;
+
+                case 'dnd':
+                    $val_lower = strtolower( trim( $value ) );
+                    $kylas_payload['dnd'] = in_array( $val_lower, array( 'yes', 'true', '1', 'on' ), true );
+                    break;
+                
+                case 'companyEmployees':
+                case 'requirementBudget':
+                    $kylas_payload[ $kylas_field ] = intval( $value );
+                    break;
+
+                case 'companyAnnualRevenue':
+                    $kylas_payload[ $kylas_field ] = floatval( $value );
                     break;
 
                 default:
