@@ -20,6 +20,7 @@ define( 'KYLAS_CRM_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 // Include required files
 require_once KYLAS_CRM_PLUGIN_DIR . 'includes/db-init.php';
 require_once KYLAS_CRM_PLUGIN_DIR . 'includes/logger.php';
+require_once KYLAS_CRM_PLUGIN_DIR . 'includes/field-config.php';
 require_once KYLAS_CRM_PLUGIN_DIR . 'admin/admin-menu.php';
 require_once KYLAS_CRM_PLUGIN_DIR . 'includes/form-handler.php';
 
@@ -49,9 +50,18 @@ function kylas_crm_init_form_handler() {
 add_action( 'plugins_loaded', 'kylas_crm_init_form_handler' );
 
 /**
- * Frontend assets (Retry button + behavior)
+ * Frontend assets (Retry button + behavior + Styles)
  */
 function kylas_crm_enqueue_assets() {
+    // Enqueue Styles
+    wp_enqueue_style(
+        'kylas-crm-frontend',
+        KYLAS_CRM_PLUGIN_URL . 'assets/css/frontend-style.css',
+        array(),
+        KYLAS_CRM_VERSION
+    );
+
+    // Enqueue Scripts
 	wp_enqueue_script(
 		'kylas-crm-retry',
 		KYLAS_CRM_PLUGIN_URL . 'assets/js/retry.js',
@@ -71,110 +81,3 @@ function kylas_crm_enqueue_assets() {
 }
 add_action( 'wp_enqueue_scripts', 'kylas_crm_enqueue_assets' );
 
-/**
- * Global Contact Form 7 Modern Styling
- */
-function kylas_crm_global_styles() {
-    ?>
-    <style>
-    /* Clean & Professional Contact Form 7 Styling */
-    .wpcf7-form {
-        max-width: 500px;
-        margin: 30px 0;
-        padding: 40px;
-        background: #ffffff;
-        border-radius: 12px;
-        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
-        color: #333;
-    }
-
-    .wpcf7-form label {
-        display: block;
-        margin-bottom: 20px;
-        color: #444;
-        font-size: 15px;
-        font-weight: 500;
-    }
-
-    .wpcf7-form-control-wrap {
-        display: block;
-        margin-top: 8px;
-    }
-
-    .wpcf7-form input[type="text"],
-    .wpcf7-form input[type="email"],
-    .wpcf7-form input[type="tel"],
-    .wpcf7-form textarea {
-        width: 100%;
-        padding: 12px 16px;
-        border: 1px solid #e0e0e0;
-        border-radius: 8px;
-        background: #fcfcfc;
-        color: #333 !important;
-        font-size: 15px;
-        transition: all 0.2s ease;
-        box-sizing: border-box;
-    }
-
-    .wpcf7-form input:focus {
-        outline: none;
-        border-color: #6c5ce7;
-        background: #fff;
-        box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.1);
-    }
-
-    .wpcf7-submit {
-        width: 100%;
-        padding: 14px !important;
-        background: #6c5ce7 !important;
-        color: #fff !important;
-        border: none !important;
-        border-radius: 8px !important;
-        font-size: 16px !important;
-        font-weight: 600 !important;
-        cursor: pointer;
-        transition: background 0.3s ease !important;
-        margin-top: 15px;
-    }
-
-    .wpcf7-submit:hover {
-        background: #5b4cc4 !important;
-    }
-
-    .wpcf7-submit:active {
-        transform: translateY(1px);
-    }
-
-    .kylas-crm-retry {
-        width: 100%;
-        padding: 14px !important;
-        background: #f5f6fa !important;
-        color: #2d3436 !important;
-        border: 1px solid #dfe6e9 !important;
-        border-radius: 8px !important;
-        font-size: 16px !important;
-        font-weight: 600 !important;
-        cursor: pointer;
-        transition: background 0.2s ease, border-color 0.2s ease !important;
-        margin-top: 10px;
-    }
-
-    .kylas-crm-retry:hover {
-        background: #eef0f6 !important;
-        border-color: #cfd6d9 !important;
-    }
-
-    .kylas-crm-retry[disabled] {
-        opacity: 0.7;
-        cursor: not-allowed;
-    }
-
-    .kylas-crm-retry-status {
-        margin-top: 10px;
-        font-size: 14px;
-        color: #636e72;
-    }
-    </style>
-    <?php
-}
-add_action( 'wp_head', 'kylas_crm_global_styles' );

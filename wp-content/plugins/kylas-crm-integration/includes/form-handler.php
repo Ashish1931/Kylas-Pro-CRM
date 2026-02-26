@@ -22,9 +22,11 @@ class Kylas_CRM_Form_Handler {
      * Handle CF7 Submission
      */
     public function handle_cf7_submission( $contact_form ) {
+        error_log('Kylas handle_cf7_submission triggered for form ' . $contact_form->id());
         // Prevent duplicate execution within same request
         static $already_processed = false;
         if ( $already_processed ) {
+            error_log('Kylas already processed for this request.');
             return;
         }
         $already_processed = true;
@@ -36,6 +38,7 @@ class Kylas_CRM_Form_Handler {
         $submission = WPCF7_Submission::get_instance();
         
         if ( ! $submission ) {
+            error_log('Kylas error: WPCF7_Submission::get_instance() returned null.');
             return;
         }
 
@@ -43,6 +46,7 @@ class Kylas_CRM_Form_Handler {
         $posted_data = $submission->get_posted_data();
 
         if ( empty( $posted_data ) || ! is_array( $posted_data ) ) {
+            error_log('Kylas error: posted_data is empty or not an array.');
             return;
         }
 
@@ -52,16 +56,22 @@ class Kylas_CRM_Form_Handler {
         // 2. Prepare CRM Payload
         $kylas_payload = $this->build_kylas_payload( $posted_data, $mapping );
 
-        // 4. Extract basic info for local storage display
-        $first_name = isset($kylas_payload['firstName']) ? $kylas_payload['firstName'] : '';
-        $last_name = isset($kylas_payload['lastName']) ? $kylas_payload['lastName'] : '';
+        // 4. Extract basic info for local storage (robust extraction)
+        $first_name = '';
+        foreach(['firstName', 'first-name', 'fname', 'first_name', 'your-name', 'name'] as $k) {
+            if (!empty($posted_data[$k])) { $first_name = is_array($posted_data[$k]) ? $posted_data[$k][0] : $posted_data[$k]; break; }
+        }
+        $last_name = '';
+        foreach(['lastName', 'last-name', 'lname', 'last_name', 'surname'] as $k) {
+            if (!empty($posted_data[$k])) { $last_name = is_array($posted_data[$k]) ? $posted_data[$k][0] : $posted_data[$k]; break; }
+        }
         $email = '';
-        if (isset($kylas_payload['emails'][0]['value'])) {
-             $email = $kylas_payload['emails'][0]['value'];
+        foreach(['emails', 'email', 'your-email', 'e-mail'] as $k) {
+            if (!empty($posted_data[$k])) { $email = is_array($posted_data[$k]) ? $posted_data[$k][0] : $posted_data[$k]; break; }
         }
         $phone = '';
-        if (isset($kylas_payload['phoneNumbers'][0]['value'])) {
-             $phone = $kylas_payload['phoneNumbers'][0]['value'];
+        foreach(['phoneNumbers', 'phone', 'tel', 'mobile'] as $k) {
+            if (!empty($posted_data[$k])) { $phone = is_array($posted_data[$k]) ? $posted_data[$k][0] : $posted_data[$k]; break; }
         }
 
         // 5. Save locally always (even if API fails later)
@@ -85,6 +95,14 @@ class Kylas_CRM_Form_Handler {
             );
             $kylas_result_props['status'] = 'skipped';
             $kylas_result_props['message'] = 'Kylas mapping missing. API call skipped.';
+
+            if ( $lead_id ) {
+                $wpdb->update(
+                    $wpdb->prefix . 'kylas_crm_form_data',
+                    array( 'status' => 'skipped', 'response_body' => 'Mapping missing' ),
+                    array( 'lead_id' => $lead_id )
+                );
+            }
 
             $submission->add_result_props( array( 'kylas' => $kylas_result_props ) );
             return;
@@ -130,26 +148,12 @@ class Kylas_CRM_Form_Handler {
      */
     private function auto_map_fields($data) {
         $map = array();
-
-        // Each Kylas field -> all CF7 field name variations (including CF7 defaults)
-        $logic = array(
-            'firstName'   => array('first-name', 'fname', 'first_name', 'your-name', 'name', 'full-name', 'fullname'),
-            'lastName'    => array('last-name', 'lname', 'last_name', 'surname', 'your-last-name'),
-            'email'       => array('email', 'your-email', 'e-mail', 'your-e-mail'),
-            'phone'       => array('phone', 'tel', 'mobile', 'contact', 'your-phone', 'your-tel', 'phone-number'),
-            'companyName' => array('company', 'org', 'organization', 'company-name', 'your-company'),
-            'designation' => array('designation', 'job-title', 'title', 'position', 'your-designation'),
-            'city'        => array('city', 'location', 'your-city'),
-            'state'       => array('state', 'province', 'your-state'),
-            'zipCode'     => array('zip', 'zipcode', 'zip-code', 'pincode', 'pin-code'),
-            'website'     => array('website', 'url', 'web', 'your-website'),
-            'requirement' => array('requirement', 'subject', 'your-subject', 'note', 'comments', 'enquiry'),
-            'description' => array('message', 'your-message', 'description', 'details', 'about'),
-        );
+        $logic = kylas_crm_get_auto_mapping_logic();
 
         foreach ($data as $key => $val) {
+            $lower_key = strtolower($key);
             foreach ($logic as $kylas_key => $variations) {
-                if (in_array(strtolower($key), $variations)) {
+                if (in_array($lower_key, $variations)) {
                     $map[$key] = $kylas_key;
                     break;
                 }
@@ -297,19 +301,31 @@ class Kylas_CRM_Form_Handler {
         $response = wp_remote_post( $endpoint, $args );
 
         if ( is_wp_error( $response ) ) {
+            $error_message = $response->get_error_message();
             Kylas_CRM_Logger::error(
                 'Kylas request failed (WP_Error).',
                 array_merge(
                     $meta,
                     array(
                         'endpoint' => $endpoint,
-                        'error'    => $response->get_error_message(),
+                        'error'    => $error_message,
                     )
                 )
             );
+
+            // QM Debug
+            if ( class_exists( 'QM_Collectors' ) ) {
+                do_action( 'qm/error', "[Kylas CRM] API Request Failed: $error_message", $data );
+            }
         } else {
             $code = wp_remote_retrieve_response_code( $response );
             $body = wp_remote_retrieve_body( $response );
+
+            // QM Debug for successful or failed responses
+            if ( class_exists( 'QM_Collectors' ) ) {
+                $qm_level = ( $code >= 200 && $code < 300 ) ? 'info' : 'error';
+                do_action( "qm/$qm_level", "[Kylas CRM] Response $code", array( 'payload' => $data, 'response' => $body ) );
+            }
 
             if ( $code >= 400 ) {
                 Kylas_CRM_Logger::error(
@@ -528,12 +544,14 @@ class Kylas_CRM_Form_Handler {
 
             switch ( $kylas_field ) {
                 case 'email':
+                case 'emails':
                     $kylas_payload['emails'] = array(
                         array( 'type' => 'OFFICE', 'value' => $value, 'primary' => true ),
                     );
                     break;
 
                 case 'phone':
+                case 'phoneNumbers':
                     $clean_phone = preg_replace( '/[^0-9]/', '', $value );
                     if ( strlen( $clean_phone ) > 10 ) {
                         $clean_phone = substr( $clean_phone, -10 );
@@ -552,6 +570,7 @@ class Kylas_CRM_Form_Handler {
 
                 case 'requirement':
                 case 'description':
+                case 'aboutYou':
                     if ( ! isset( $kylas_payload['notes'] ) ) {
                         $kylas_payload['notes'] = array();
                     }
@@ -576,17 +595,57 @@ class Kylas_CRM_Form_Handler {
                     break;
 
                 case 'dnd':
+                case 'isNew':
                     $val_lower = strtolower( trim( $value ) );
-                    $kylas_payload['dnd'] = in_array( $val_lower, array( 'yes', 'true', '1', 'on' ), true );
+                    $kylas_payload[ $kylas_field ] = in_array( $val_lower, array( 'yes', 'true', '1', 'on' ), true );
                     break;
                 
                 case 'companyEmployees':
                 case 'requirementBudget':
+                case 'score':
+                case 'aging':
                     $kylas_payload[ $kylas_field ] = intval( $value );
                     break;
 
                 case 'companyAnnualRevenue':
                     $kylas_payload[ $kylas_field ] = floatval( $value );
+                    break;
+
+                // Date fields
+                case 'expectedClosureOn':
+                case 'actualClosureDate':
+                case 'convertedAt':
+                case 'taskDueOn':
+                case 'meetingScheduledOn':
+                case 'latestActivityCreatedAt':
+                    if ( ! empty( $value ) ) {
+                        // Convert to ISO 8601 format if needed
+                        try {
+                            $date = new DateTime( $value );
+                            $kylas_payload[ $kylas_field ] = $date->format( 'c' );
+                        } catch (Exception $e) {
+                            Kylas_CRM_Logger::error('Invalid date format for field ' . $kylas_field . ': ' . $value);
+                        }
+                    }
+                    break;
+
+                // URL fields
+                case 'facebook':
+                case 'twitter':
+                case 'linkedIn':
+                case 'companyWebsite':
+                    if ( ! empty( $value ) ) {
+                        // Ensure URL has protocol
+                        if ( ! preg_match( '/^https?:\/\//', $value ) ) {
+                            $value = 'https://' . $value;
+                        }
+                        $kylas_payload[ $kylas_field ] = esc_url_raw( $value );
+                    }
+                    break;
+
+                // Handle legacy field mappings
+                case 'zipCode':
+                    $kylas_payload['zipcode'] = $value;
                     break;
 
                 default:

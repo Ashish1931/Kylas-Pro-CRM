@@ -35,6 +35,11 @@ class Kylas_CRM_Logger {
 
 		// Best-effort logging; don't break form submissions on IO issues.
 		@file_put_contents( $path, $line, FILE_APPEND | LOCK_EX );
+
+		// PRO SETUP: If Query Monitor is active, also log to its console
+		if ( class_exists( 'QM_Collectors' ) ) {
+			do_action( 'qm/debug', "[Kylas CRM $level]: $message", $context );
+		}
 	}
 
 	private static function get_log_path(): string {
@@ -102,4 +107,3 @@ class Kylas_CRM_Logger {
 		return $out;
 	}
 }
-

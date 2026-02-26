@@ -1,0 +1,38 @@
+.card {
+    background: #fff;
+    border: 1px solid #ccd0d4;
+    box-shadow: 0 1px 1px rgba(0, 0, 0, .04);
+    padding: 20px;
+    margin-bottom: 20px;
+    max-width: 100%;
+}
+
+.required-star {
+    color: #d63638;
+    font-weight: bold;
+    margin-left: 5px;
+}
+
+.mapping-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.mapping-header form:first-child {
+    flex-grow: 1;
+}
+
+.mapping-section {
+    border-top: 1px solid #eee;
+    padding-top: 20px;
+}
+
+.submit-wrapper {
+    margin-top: 20px;
+}
+
+.saved-mappings-card {
+    margin-top: 40px;
+}

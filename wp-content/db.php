@@ -1,0 +1,1 @@
+/var/www/html/kylas-pro-site/wp-content/plugins/query-monitor/wp-content/db.php

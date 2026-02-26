@@ -53,7 +53,7 @@
                 </label>
 
                 <button id="kf-submit" class="wpcf7-submit" type="button">Send Message ✉️</button>
-                <button id="kf-retry" class="kylas-crm-retry" type="button" disabled>Retry</button>
+                <button id="kf-retry" class="kylas-crm-retry" type="button" disabled>Retry ⟳</button>
                 <div id="kf-response" style="margin-top:0.75rem; font-size:0.88rem; min-height:1.2em;"></div>
                 <div id="kf-retry-status" class="kylas-crm-retry-status"></div>
             </div>
@@ -107,9 +107,9 @@
                     }
                     setField(['first-name', 'fname', 'firstName', 'first_name'], fn);
                     setField(['last-name', 'lname', 'lastName', 'last_name'],  ln);
-                    setField(['your-email', 'email', 'email-address'], em);
-                    setField(['phone', 'tel', 'mobile-number'], ph);
-                    setField(['your-message', 'message', 'description', 'requirement'], msg);
+                    setField(['your-email', 'emails', 'email', 'email-address'], em);
+                    setField(['phoneNumbers', 'phone', 'tel', 'mobile-number'], ph);
+                    setField(['requirementName', 'your-message', 'message', 'description', 'requirement'], msg);
 
                     btn.disabled = true;
                     btn.textContent = 'Sending…';

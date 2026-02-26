@@ -12,14 +12,28 @@ class Kylas_CRM_Admin_Menu {
 
     public function enqueue_scripts( $hook ) {
         // Only load scripts/styles on our plugin pages
-        if ( ! strpos( $hook, 'kylas-crm' ) ) {
+        if ( strpos( $hook, 'kylas-crm-mapping' ) !== false ) {
+            wp_enqueue_style(
+                'kylas-crm-admin-mapping',
+                KYLAS_CRM_PLUGIN_URL . 'assets/css/admin-mapping.css',
+                array(),
+                KYLAS_CRM_VERSION
+            );
+
+            wp_enqueue_script(
+                'kylas-crm-admin-mapping',
+                KYLAS_CRM_PLUGIN_URL . 'assets/js/admin-mapping.js',
+                array('jquery'),
+                KYLAS_CRM_VERSION,
+                true
+            );
+        }
+
+        if ( strpos( $hook, 'kylas-crm' ) === false ) {
             return;
         }
 
         wp_enqueue_script( 'jquery' ); 
-        
-        // Inline script for tab handling or simple JS logic
-        // For the field mapping logic, you'll eventually want a dedicated JS file.
     }
 
     public function add_menu_page() {

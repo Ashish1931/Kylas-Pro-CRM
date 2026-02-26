@@ -53,44 +53,7 @@ if (class_exists('WPCF7_ContactForm')) {
 }
 
 // Define Default Kylas Fields
-$default_kylas_fields = array(
-    'firstName'          => array('label' => 'First Name', 'type' => 'Text'),
-    'lastName'           => array('label' => 'Last Name', 'type' => 'Text'),
-    'email'              => array('label' => 'Email', 'type' => 'Text'),
-    'phone'              => array('label' => 'Phone', 'type' => 'Text'),
-    'salutation'         => array('label' => 'Salutation', 'type' => 'Text'),
-    'timezone'           => array('label' => 'Timezone', 'type' => 'Text'),
-    'address'            => array('label' => 'Address', 'type' => 'Text'),
-    'city'               => array('label' => 'City', 'type' => 'Text'),
-    'state'              => array('label' => 'State', 'type' => 'Text'),
-    'zipCode'            => array('label' => 'Zip Code', 'type' => 'Text'),
-    'country'            => array('label' => 'Country', 'type' => 'Text'),
-    'department'         => array('label' => 'Department', 'type' => 'Text'),
-    'dnd'                => array('label' => 'Do Not Disturb (DND)', 'type' => 'Boolean'),
-    'facebook'           => array('label' => 'Facebook URL', 'type' => 'URL'),
-    'twitter'            => array('label' => 'Twitter URL', 'type' => 'URL'),
-    'linkedIn'           => array('label' => 'LinkedIn URL', 'type' => 'URL'),
-    'companyName'        => array('label' => 'Company Name', 'type' => 'Text'),
-    'designation'        => array('label' => 'Designation', 'type' => 'Text'),
-    'companyAddress'     => array('label' => 'Company Address', 'type' => 'Text'),
-    'companyCity'        => array('label' => 'Company City', 'type' => 'Text'),
-    'companyState'       => array('label' => 'Company State', 'type' => 'Text'),
-    'companyZipcode'     => array('label' => 'Company Zipcode', 'type' => 'Text'),
-    'companyCountry'     => array('label' => 'Company Country', 'type' => 'Text'),
-    'companyEmployees'   => array('label' => 'Company Employees', 'type' => 'Number'),
-    'companyAnnualRevenue'=> array('label' => 'Company Annual Revenue', 'type' => 'Number'),
-    'companyWebsite'     => array('label' => 'Company Website', 'type' => 'URL'),
-    'companyPhones'      => array('label' => 'Company Phone', 'type' => 'Text'),
-    'companyIndustry'    => array('label' => 'Company Industry', 'type' => 'List'),
-    'companyBusinessType'=> array('label' => 'Company Business Type', 'type' => 'Text'),
-    'requirementName'    => array('label' => 'Requirement Name', 'type' => 'Text'),
-    'requirementCurrency'=> array('label' => 'Requirement Currency', 'type' => 'Text'),
-    'requirementBudget'  => array('label' => 'Requirement Budget', 'type' => 'Number'),
-    'campaign'           => array('label' => 'Campaign', 'type' => 'Text'),
-    'source'             => array('label' => 'Source', 'type' => 'List'),
-    'requirement'        => array('label' => 'Requirement (Note)', 'type' => 'Text'),
-    'description'        => array('label' => 'Description (Full Note)', 'type' => 'Text'),
-);
+$default_kylas_fields = kylas_crm_get_default_fields();
 
 // Fetch current fields from DB or use defaults
 $kylas_fields = get_option('kylas_crm_lead_fields', $default_kylas_fields);
@@ -116,10 +79,10 @@ if ($selected_form_id > 0) {
 <div class="wrap">
     <h1>Kylas CRM Field Mapping</h1>
     
-    <div class="card" style="max-width: 100%; margin-top: 20px;">
-        <h2>Step 1 & 2: Select Form</h2>
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-            <form method="get" action="" style="flex-grow: 1;">
+    <div class="card">
+        <h2>Step 1: Select Form & Mapping Panel</h2>
+        <div class="mapping-header">
+            <form method="get" action="">
                 <input type="hidden" name="page" value="kylas-crm-mapping" />
                 <table class="form-table">
                     <tr>
@@ -145,69 +108,105 @@ if ($selected_form_id > 0) {
                 </button>
             </form>
         </div>
+
+        <?php if ($selected_form_id > 0) : 
+            $contact_form = WPCF7_ContactForm::get_instance($selected_form_id);
+            if ($contact_form) :
+                $tags = $contact_form->scan_form_tags();
+                // Filter out non-input tags
+                $input_tags = array_filter($tags, function($tag) {
+                    return !empty($tag->name) && !in_array($tag->type, array('submit', 'captcha', 'quiz'));
+                });
+        ?>
+            <div class="mapping-section">
+                <form method="post" action="">
+                    <?php wp_nonce_field('kylas_crm_save_mapping', 'kylas_crm_mapping_nonce'); ?>
+                    <input type="hidden" name="form_type" value="cf7" />
+                    <input type="hidden" name="form_id" value="<?php echo $selected_form_id; ?>" />
+                    
+                    <table class="wp-list-table widefat fixed striped">
+                        <thead>
+                            <tr>
+                                <th>CF7 Field Label</th>
+                                <th>Kylas CRM Field</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($input_tags as $tag) : 
+                                // Extract field label from the form content
+                                $field_label = '';
+                                if (!empty($tag->labels) && is_array($tag->labels)) {
+                                    $field_label = reset($tag->labels); // Get first label
+                                }
+                                
+                                // If no labels from tag object, try to extract from form content
+                                if (empty($field_label)) {
+                                    $form_content = $contact_form->prop('form');
+                                    if ($form_content && !empty($tag->name)) {
+                                        // Look for label patterns in the form content
+                                        $label_pattern = '/<label[^>]*>([^<]*(?:' . preg_quote($tag->name, '/') . ')[^<]*)<\/label>/i';
+                                        if (preg_match($label_pattern, $form_content, $matches)) {
+                                            $field_label = trim(strip_tags($matches[1]));
+                                            // Remove the field name part if present
+                                            $field_label = str_replace(array($tag->name, '[' . $tag->name . ']'), '', $field_label);
+                                            $field_label = trim($field_label);
+                                        }
+                                        
+                                        // Alternative pattern for div-based labels
+                                        if (empty($field_label)) {
+                                            $div_pattern = '/<div[^>]*class="form-field"[^>]*>\s*<label[^>]*>([^<]*)<\/label>.*?\[' . preg_quote($tag->name, '/') . '\]/is';
+                                            if (preg_match($div_pattern, $form_content, $matches)) {
+                                                $field_label = trim(strip_tags($matches[1]));
+                                            }
+                                        }
+                                    }
+                                }
+                                
+                                // Fallback: create a readable label from field name
+                                if (empty($field_label)) {
+                                    $field_label = ucwords(str_replace(array('-', '_'), ' ', $tag->name));
+                                }
+                                
+                                // Clean up the label - remove "Required" text and extra spaces
+                                $field_label = trim(str_replace('(Required)', '', $field_label));
+                                $field_label = trim(str_replace('Required', '', $field_label));
+                            ?>
+                                <tr>
+                                    <td>
+                                        <strong><?php echo esc_html($field_label); ?></strong>
+                                        <br><span class="description">[<?php echo esc_html($tag->name); ?>] (Type: <?php echo esc_html($tag->type); ?>)</span>
+                                    </td>
+                                    <td>
+                                        <select name="mapping[<?php echo esc_attr($tag->name); ?>]">
+                                            <option value="">-- Do Not Map --</option>
+                                            <?php foreach ($kylas_fields as $key => $data) : ?>
+                                                <option value="<?php echo esc_attr($key); ?>" <?php selected(isset($current_mapping[$tag->name]) && $current_mapping[$tag->name] === $key); ?>>
+                                                    <?php echo esc_html($data['label']); ?> 
+                                                    (<?php echo esc_html($data['type']); ?><?php if (!empty($data['required'])) echo ', Required'; ?>)
+                                                </option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                    <div class="submit-wrapper">
+                        <?php submit_button('Save Mapping'); ?>
+                    </div>
+                </form>
+            </div>
+        <?php endif; endif; ?>
     </div>
 
-    <?php if ($selected_form_id > 0) : 
-        $contact_form = WPCF7_ContactForm::get_instance($selected_form_id);
-        if ($contact_form) :
-            $tags = $contact_form->scan_form_tags();
-            // Filter out non-input tags
-            $input_tags = array_filter($tags, function($tag) {
-                return !empty($tag->name) && !in_array($tag->type, array('submit', 'captcha', 'quiz'));
-            });
-    ?>
-        <div class="card" style="max-width: 100%; margin-top: 20px;">
-            <h2>Step 3: Mapping Panel</h2>
-            <form method="post" action="">
-                <?php wp_nonce_field('kylas_crm_save_mapping', 'kylas_crm_mapping_nonce'); ?>
-                <input type="hidden" name="form_type" value="cf7" />
-                <input type="hidden" name="form_id" value="<?php echo $selected_form_id; ?>" />
-                
-                <table class="wp-list-table widefat fixed striped">
-                    <thead>
-                        <tr>
-                            <th>CF7 Field (Read Only)</th>
-                            <th>Kylas CRM Field</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($input_tags as $tag) : ?>
-                            <tr>
-                                <td>
-                                    <strong>[<?php echo esc_html($tag->name); ?>]</strong>
-                                    <span class="description">(Type: <?php echo esc_html($tag->type); ?>)</span>
-                                </td>
-                                <td>
-                                    <select name="mapping[<?php echo esc_attr($tag->name); ?>]">
-                                        <option value="">-- Do Not Map --</option>
-                                        <?php foreach ($kylas_fields as $key => $data) : ?>
-                                            <option value="<?php echo esc_attr($key); ?>" <?php selected(isset($current_mapping[$tag->name]) && $current_mapping[$tag->name] === $key); ?>>
-                                                <?php echo esc_html($data['label']); ?> 
-                                                (<?php echo esc_html($data['type']); ?><?php if ($key === 'lastName') echo ', Required'; ?>)
-                                            </option>
-                                        <?php endforeach; ?>
-                                    </select>
-                                </td>
-                            </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
-                <div style="margin-top: 20px;">
-                    <?php submit_button('Save Mapping'); ?>
-                </div>
-            </form>
-        </div>
-    <?php endif; endif; ?>
-
-    <div class="card" style="max-width: 100%; margin-top: 40px;">
-        <h2>Step 4: View Saved Mappings</h2>
+    <div class="card saved-mappings-card">
+        <h2>Step 2: View Saved Mappings</h2>
         <?php
         $saved_mappings = $wpdb->get_results("SELECT * FROM $table_name ORDER BY updated_at DESC");
         ?>
         <table class="wp-list-table widefat fixed striped">
             <thead>
                 <tr>
-                    <th>Form Type</th>
                     <th>Form Name (ID)</th>
                     <th>Mapping Count</th>
                     <th>Updated Date</th>
@@ -225,7 +224,6 @@ if ($selected_form_id > 0) {
                     $count = is_array($map_arr) ? count($map_arr) : 0;
                 ?>
                     <tr>
-                        <td><?php echo strtoupper(esc_html($row->form_type)); ?></td>
                         <td><?php echo esc_html($form_name); ?> (<?php echo intval($row->form_id); ?>)</td>
                         <td><?php echo $count; ?> fields</td>
                         <td><?php echo esc_html($row->updated_at); ?></td>
@@ -237,62 +235,10 @@ if ($selected_form_id > 0) {
                         </td>
                     </tr>
                 <?php endforeach; else : ?>
-                    <tr><td colspan="5">No mappings found.</td></tr>
+                    <tr><td colspan="4">No mappings found.</td></tr>
                 <?php endif; ?>
             </tbody>
         </table>
     </div>
 </div>
 
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    const selects = document.querySelectorAll('select[name^="mapping"]');
-    const form = selects[0].closest('form');
-
-    function updateDropdowns() {
-        const selectedValues = Array.from(selects)
-            .map(s => s.value)
-            .filter(v => v !== '');
-
-        selects.forEach(select => {
-            const currentValue = select.value;
-            Array.from(select.options).forEach(option => {
-                if (option.value !== '' && option.value !== currentValue) {
-                    option.disabled = selectedValues.includes(option.value);
-                } else {
-                    option.disabled = false;
-                }
-            });
-        });
-    }
-
-    selects.forEach(select => {
-        select.addEventListener('change', updateDropdowns);
-    });
-
-    form.addEventListener('submit', function(e) {
-        const selectedValues = Array.from(selects).map(s => s.value);
-        if (!selectedValues.includes('lastName')) {
-            e.preventDefault();
-            alert('Error: The "Last Name" field is required by Kylas CRM and must be mapped.');
-        }
-    });
-
-    updateDropdowns(); // Initial run
-});
-</script>
-
-<style>
-.card {
-    background: #fff;
-    border: 1px solid #ccd0d4;
-    box-shadow: 0 1px 1px rgba(0,0,0,.04);
-    padding: 20px;
-    margin-bottom: 20px;
-}
-.required-star {
-    color: #d63638;
-    font-weight: bold;
-    margin-left: 5px;
-}
-</style>
